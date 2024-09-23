@@ -122,10 +122,16 @@ def get_radar_chart(input_data):
     categories = list(input_data.keys())
     values = list(input_data.values())
 
+    # Normalize the values to a 0-1 scale for better visualization
+    min_vals = [6.981, 9.71, 43.79, 143.5, 0.05263, 0.01938, 0.0, 0.0, 0.106, 0.04996, 0.1115, 0.36, 0.757, 6.802, 0.001713, 0.002252, 0.0, 0.0, 0.007882, 0.0008948, 7.93, 12.02, 50.41, 185.2, 0.07117, 0.02729, 0.0, 0.0, 0.1565, 0.05504]
+    max_vals = [28.11, 39.28, 188.5, 2501.0, 0.1634, 0.3454, 0.4268, 0.2012, 0.304, 0.09744, 2.873, 4.885, 21.98, 542.2, 0.03113, 0.1354, 0.396, 0.05279, 0.07895, 0.02984, 36.04, 49.54, 251.2, 4254.0, 0.2226, 1.058, 1.252, 0.291, 0.6638, 0.2075]
+
+    normalized_values = [(v - min_val) / (max_val - min_val) for v, min_val, max_val in zip(values, min_vals, max_vals)]
+
     fig = go.Figure()
 
     fig.add_trace(go.Scatterpolar(
-        r=values,
+        r=normalized_values,
         theta=categories,
         fill='toself',
         name='Patient Data'
@@ -176,15 +182,28 @@ def add_predictions(input_data):
 
     return prediction, proba
 
-def visualize_data(data):
+def visualize_data(data, input_data=None, proba=None):
     st.subheader("Data Visualization")
 
     # Distribution of diagnosis
     st.write("Distribution of Diagnosis")
-    fig = px.pie(data, names='diagnosis', title="Distribution of Benign vs Malignant Cases")
+    if input_data is not None and proba is not None:
+        # Create a pie chart for the single prediction
+        labels = ['Benign', 'Malignant']
+        values = [proba[0], proba[1]]
+        fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.3)])
+        fig.update_layout(title_text="Prediction Probability")
+    else:
+        # Show the distribution for the entire dataset
+        benign_count = (data['diagnosis'] == 0).sum()
+        malignant_count = (data['diagnosis'] == 1).sum()
+        fig = go.Figure(data=[go.Pie(labels=['Benign', 'Malignant'], 
+                                     values=[benign_count, malignant_count], hole=.3)])
+        fig.update_layout(title_text="Distribution of Benign vs Malignant Cases")
+    
     st.plotly_chart(fig)
-    st.write("This pie chart shows the distribution of benign (0) and malignant (1) cases in our dataset. "
-             "It gives us an idea of the balance between the two classes.")
+    st.write("This pie chart shows the distribution of benign and malignant cases. "
+             "For user input, it shows the predicted probabilities.")
 
     # Correlation heatmap
     st.write("Feature Correlations")
@@ -304,7 +323,7 @@ def main():
         
         with col1:
             radar_chart = get_radar_chart(input_data)
-            st.plotly_chart(radar_chart)
+            st.plotly_chart(radar_chart, use_container_width=True)
         with col2:
             prediction, proba = add_predictions(input_data)
 
@@ -316,6 +335,9 @@ def main():
                 file_name="breast_cancer_risk_report.pdf",
                 mime="application/pdf"
             )
+
+        # Visualize the prediction for the current input
+        visualize_data(get_clean_data(), input_data, proba)
 
     with tab2:
         data = get_clean_data()
